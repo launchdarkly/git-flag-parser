@@ -8,7 +8,7 @@ require (
 	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/hashicorp/go-retryablehttp v0.5.0
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
-	github.com/launchdarkly/api-client-go v3.9.0+incompatible
+	github.com/launchdarkly/api-client-go v5.0.2+incompatible
 	github.com/launchdarkly/json-patch v0.0.0-20180720210516-dd68d883319f
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00
