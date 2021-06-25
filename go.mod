@@ -1,6 +1,6 @@
 module github.com/launchdarkly/ld-find-code-refs
 
-go 1.13
+go 1.16
 
 require (
 	github.com/antihax/optional v1.0.0
