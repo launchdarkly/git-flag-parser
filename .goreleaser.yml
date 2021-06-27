@@ -1,6 +1,7 @@
 builds:
   -
     binary: ld-find-code-refs
+    id: ld-find-code-refs
     main: ./cmd/ld-find-code-refs/
     env:
       - CGO_ENABLED=0
@@ -11,48 +12,109 @@ builds:
     goarch:
       - 386
       - amd64
+  -
+    binary: ld-find-code-refs-github-action
+    id: ld-find-code-refs-github-action
+    main: ./build/package/github-actions/
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+  -
+    binary: ld-find-code-refs-bitbucket-pipeline
+    id: ld-find-code-refs-bitbucket-pipeline
+    main: ./build/package/bitbucket-pipelines/
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
 
-nfpm:
-  name_template: "{{ .ProjectName }}_{{ .Version }}.{{ .Arch }}"
+archives:
+  -
+    id: ld-find-code-refs
+    builds:
+    - ld-find-code-refs
 
-  homepage: https://launchdarkly.com/
-  maintainer: LaunchDarkly <team@launchdarkly.com>
-  description: Job for finding and sending feature flag code references to LaunchDarkly
-  license: Apache 2.0
-  vendor: LaunchDarkly
+nfpms:
+  -
+    id: ld-find-code-refs
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}.{{ .Arch }}"
 
-  formats:
-  - deb
-  - rpm
+    homepage: https://launchdarkly.com/
+    maintainer: LaunchDarkly <team@launchdarkly.com>
+    description: Job for finding and sending feature flag code references to LaunchDarkly
+    license: Apache 2.0
+    vendor: LaunchDarkly
 
-  replacements:
-    386: i386
+    formats:
+    - deb
+    - rpm
 
-release:
-  # If set to auto, will mark the release as not ready for production
-  # in case there is an indicator for this in the tag e.g. v1.0.0-rc1
-  # If set to true, will mark the release as not ready for production.
-  prerelease: auto
+    replacements:
+      386: i386
 
-brew:
-  name: ld-find-code-refs
+brews:
+  -
+    ids: 
+    - ld-find-code-refs
+    
+    name: ld-find-code-refs
 
-  description: Job for finding and sending feature flag code references to LaunchDarkly
+    description: Job for finding and sending feature flag code references to LaunchDarkly
 
-  homepage: "https://launchdarkly.com"
+    homepage: "https://launchdarkly.com"
 
-  github:
-    owner: launchdarkly
-    name: homebrew-tap
+    tap:
+      owner: launchdarkly
+      name: homebrew-tap
 
-  folder: Formula
+    folder: Formula
 
-  url_template: "https://github.com/launchdarkly/ld-find-code-refs/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/launchdarkly/ld-find-code-refs/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
-  install: |
-    bin.install "ld-find-code-refs"
+    install: |
+      bin.install "ld-find-code-refs"
 
-  commit_author:
-    name: LaunchDarklyCI
-    email: dev@launchdarkly.com
+    commit_author:
+      name: LaunchDarklyCI
+      email: dev@launchdarkly.com
 
+dockers:
+  -
+    image_templates:
+    - "launchdarkly/ld-find-code-refs:latest"
+    - "launchdarkly/ld-find-code-refs:{{ .Tag }}"
+      
+    dockerfile: build/package/cmd/Dockerfile
+ 
+  -
+    goos: linux
+
+    # GOARCH of the built binaries/packages that should be used.
+    goarch: amd64
+    ids: 
+    - ld-find-code-refs-github-action
+
+    image_templates:
+    - "launchdarkly/ld-find-code-refs-github-action:latest"
+    - "launchdarkly/ld-find-code-refs-github-action:{{ .Tag }}"
+      
+    dockerfile: Dockerfile.github
+  -
+    goos: linux
+
+    # GOARCH of the built binaries/packages that should be used.
+    goarch: amd64
+
+    image_templates:
+    - "launchdarkly/ld-find-code-refs-bitbucket-pipeline:latest"
+    - "launchdarkly/ld-find-code-refs-bitbucket-pipeline:{{ .Tag }}"
+     
+    ids: 
+    - ld-find-code-refs-bitbucket-pipeline
+
+    dockerfile: Dockerfile.bitbucket
