@@ -55,18 +55,60 @@ func MatchDelimiters(line, flagKey, delimiters string) bool {
 	return false
 }
 
+func MatchDelimitersMap(line, flagKey string, delimiters string, delimiterFlags map[string][]string) bool {
+	if delimiters == "" && strings.Contains(line, flagKey) {
+		return true
+	}
+
+	delimitedFlag := delimiterFlags[flagKey]
+
+	for _, flagKey := range delimitedFlag {
+		if strings.Contains(line, flagKey) {
+			return true
+		}
+	}
+	return false
+}
+
+func BuildDelimiterList(flags []string, delimiters string) map[string][]string {
+	delimiterMap := make(map[string][]string)
+	if delimiters == "" {
+		return delimiterMap
+	}
+	for _, flag := range flags {
+		//flagsDelimited := []string{}
+		tempFlags := []string{}
+		for _, left := range delimiters {
+			for _, right := range delimiters {
+				var sb strings.Builder
+				sb.Grow(len(flag) + 2)
+				sb.WriteRune(left)
+				sb.WriteString(flag)
+				sb.WriteRune(right)
+				tempFlags = append(tempFlags, sb.String())
+			}
+		}
+		delimiterMap[flag] = tempFlags
+	}
+	return delimiterMap
+}
+
 type file struct {
 	path  string
 	lines []string
 }
 
 // hunkForLine returns a matching code reference for a given flag key on a line
-func (f file) hunkForLine(projKey, flagKey string, aliases []string, lineNum, ctxLines int, delimiters string) *ld.HunkRep {
+func (f file) hunkForLine(projKey, flagKey string, aliases []string, lineNum, ctxLines int, delimiters string, delimiterMap map[string][]string) *ld.HunkRep {
 	matchedFlag := false
 	aliasMatches := []string{}
 	line := f.lines[lineNum]
 	// Match flag keys with delimiters
-	if MatchDelimiters(line, flagKey, delimiters) {
+	// if MatchDelimiters(line, flagKey, delimiters) {
+	// 	matchedFlag = true
+	// }
+
+	if MatchDelimitersMap(line, flagKey, delimiters, delimiterMap) {
 		matchedFlag = true
 	}
 
@@ -112,10 +154,10 @@ func (f file) hunkForLine(projKey, flagKey string, aliases []string, lineNum, ct
 }
 
 // aggregateHunksForFlag finds all references in a file, and combines matches if their context lines overlap
-func (f file) aggregateHunksForFlag(projKey, flagKey string, flagAliases []string, ctxLines int, delimiters string) []ld.HunkRep {
+func (f file) aggregateHunksForFlag(projKey, flagKey string, flagAliases []string, ctxLines int, delimiters string, delimiterMap map[string][]string) []ld.HunkRep {
 	hunksForFlag := []ld.HunkRep{}
 	for i := range f.lines {
-		match := f.hunkForLine(projKey, flagKey, flagAliases, i, ctxLines, delimiters)
+		match := f.hunkForLine(projKey, flagKey, flagAliases, i, ctxLines, delimiters, delimiterMap)
 		if match != nil {
 			lastHunkIdx := len(hunksForFlag) - 1
 			// If the previous hunk overlaps or is adjacent to the current hunk, merge them together
@@ -129,10 +171,10 @@ func (f file) aggregateHunksForFlag(projKey, flagKey string, flagAliases []strin
 	return hunksForFlag
 }
 
-func (f file) toHunks(projKey string, aliases map[string][]string, ctxLines int, delimiters string) *ld.ReferenceHunksRep {
+func (f file) toHunks(projKey string, aliases map[string][]string, ctxLines int, delimiters string, delimiterMap map[string][]string) *ld.ReferenceHunksRep {
 	hunks := []ld.HunkRep{}
 	for flagKey, flagAliases := range aliases {
-		hunks = append(hunks, f.aggregateHunksForFlag(projKey, flagKey, flagAliases, ctxLines, delimiters)...)
+		hunks = append(hunks, f.aggregateHunksForFlag(projKey, flagKey, flagAliases, ctxLines, delimiters, delimiterMap)...)
 	}
 	if len(hunks) == 0 {
 		return nil
@@ -172,7 +214,7 @@ func mergeHunks(a, b ld.HunkRep) []ld.HunkRep {
 }
 
 // processFiles starts goroutines to process files individually. When all files have completed processing, the references channel is closed to signal completion.
-func processFiles(ctx context.Context, files <-chan file, references chan<- ld.ReferenceHunksRep, projKey string, aliases map[string][]string, ctxLines int, delimiters string) {
+func processFiles(ctx context.Context, files <-chan file, references chan<- ld.ReferenceHunksRep, projKey string, aliases map[string][]string, ctxLines int, delimiters string, delimiterMap map[string][]string) {
 	defer close(references)
 	w := sync.WaitGroup{}
 	for f := range files {
@@ -182,7 +224,7 @@ func processFiles(ctx context.Context, files <-chan file, references chan<- ld.R
 		}
 		w.Add(1)
 		go func(f file) {
-			reference := f.toHunks(projKey, aliases, ctxLines, delimiters)
+			reference := f.toHunks(projKey, aliases, ctxLines, delimiters, delimiterMap)
 			if reference != nil {
 				references <- *reference
 			}
@@ -192,14 +234,14 @@ func processFiles(ctx context.Context, files <-chan file, references chan<- ld.R
 	w.Wait()
 }
 
-func SearchForRefs(projKey, workspace string, aliases map[string][]string, ctxLines int, delimiters string) ([]ld.ReferenceHunksRep, error) {
+func SearchForRefs(projKey, workspace string, aliases map[string][]string, ctxLines int, delimiters string, delimiterMap map[string][]string) ([]ld.ReferenceHunksRep, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	files := make(chan file)
 	references := make(chan ld.ReferenceHunksRep)
 
 	// Start workers to process files asynchronously as they are written to the files channel
-	go processFiles(ctx, files, references, projKey, aliases, ctxLines, delimiters)
+	go processFiles(ctx, files, references, projKey, aliases, ctxLines, delimiters, delimiterMap)
 
 	err := readFiles(ctx, files, workspace)
 	if err != nil {

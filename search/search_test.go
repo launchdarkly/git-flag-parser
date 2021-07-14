@@ -49,43 +49,49 @@ var (
 	}
 
 	delimitedTestFlagKey = delimit(testFlagKey, `"`)
+
+	defaultDelimsMap = map[string][]string{testFlagKey: []string{delimitedTestFlagKey}}
 )
 
 func Test_hunkForLine(t *testing.T) {
 	tests := []struct {
-		name       string
-		ctxLines   int
-		lineNum    int
-		lines      []string
-		flagKey    string
-		delimiters string
-		want       *ld.HunkRep
+		name         string
+		ctxLines     int
+		lineNum      int
+		lines        []string
+		flagKey      string
+		delimiters   string
+		delimiterMap map[string][]string
+		want         *ld.HunkRep
 	}{
 		{
-			name:       "does not match flag flag key without delimiters",
-			ctxLines:   -1,
-			lineNum:    0,
-			flagKey:    testFlagKey,
-			lines:      []string{testFlagKey},
-			delimiters: defaultDelims,
-			want:       nil,
+			name:         "does not match flag flag key without delimiters",
+			ctxLines:     -1,
+			lineNum:      0,
+			flagKey:      testFlagKey,
+			lines:        []string{testFlagKey},
+			delimiters:   defaultDelims,
+			delimiterMap: defaultDelimsMap,
+			want:         nil,
 		},
 		{
-			name:       "matches flag key with delimiters",
-			ctxLines:   0,
-			lineNum:    0,
-			flagKey:    testFlagKey,
-			lines:      []string{delimitedTestFlagKey},
-			delimiters: defaultDelims,
-			want:       makeHunkPtr(1, delimitedTestFlagKey),
+			name:         "matches flag key with delimiters",
+			ctxLines:     0,
+			lineNum:      0,
+			flagKey:      testFlagKey,
+			lines:        []string{delimitedTestFlagKey},
+			delimiters:   defaultDelims,
+			delimiterMap: defaultDelimsMap,
+			want:         makeHunkPtr(1, delimitedTestFlagKey),
 		},
 		{
-			name:     "matches no context lines without delimiters",
-			ctxLines: -1,
-			lineNum:  0,
-			flagKey:  testFlagKey,
-			lines:    []string{testFlagKey},
-			want:     makeHunkPtr(1),
+			name:         "matches no context lines without delimiters",
+			ctxLines:     -1,
+			lineNum:      0,
+			flagKey:      testFlagKey,
+			lines:        []string{testFlagKey},
+			delimiterMap: defaultDelimsMap,
+			want:         makeHunkPtr(1),
 		},
 		{
 			name:     "matches with alias",
@@ -104,35 +110,38 @@ func Test_hunkForLine(t *testing.T) {
 			want:     withAliases(makeHunkPtr(1), testFlagAlias, testFlagAlias2),
 		},
 		{
-			name:     "matches with line",
-			ctxLines: 0,
-			lineNum:  1,
-			flagKey:  testFlagKey,
-			lines:    []string{"", testFlagKey, ""},
-			want:     makeHunkPtr(2, testFlagKey),
+			name:         "matches with line",
+			ctxLines:     0,
+			lineNum:      1,
+			flagKey:      testFlagKey,
+			delimiterMap: defaultDelimsMap,
+			lines:        []string{"", testFlagKey, ""},
+			want:         makeHunkPtr(2, testFlagKey),
 		},
 		{
-			name:     "matches with context lines",
-			ctxLines: 1,
-			lineNum:  1,
-			flagKey:  testFlagKey,
-			lines:    []string{"", testFlagKey, ""},
-			want:     makeHunkPtr(1, "", testFlagKey, ""),
+			name:         "matches with context lines",
+			ctxLines:     1,
+			lineNum:      1,
+			flagKey:      testFlagKey,
+			delimiterMap: defaultDelimsMap,
+			lines:        []string{"", testFlagKey, ""},
+			want:         makeHunkPtr(1, "", testFlagKey, ""),
 		},
 		{
-			name:     "truncates long line",
-			ctxLines: 0,
-			lineNum:  0,
-			flagKey:  testFlagKey,
-			lines:    []string{testFlagKey + strings.Repeat("a", maxLineCharCount)},
-			want:     makeHunkPtr(1, testFlagKey+strings.Repeat("a", maxLineCharCount-len(testFlagKey))+"…"),
+			name:         "truncates long line",
+			ctxLines:     0,
+			lineNum:      0,
+			flagKey:      testFlagKey,
+			delimiterMap: defaultDelimsMap,
+			lines:        []string{testFlagKey + strings.Repeat("a", maxLineCharCount)},
+			want:         makeHunkPtr(1, testFlagKey+strings.Repeat("a", maxLineCharCount-len(testFlagKey))+"…"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := file{lines: tt.lines}
-			got := f.hunkForLine("default", tt.flagKey, aliases[tt.flagKey], tt.lineNum, tt.ctxLines, tt.delimiters)
+			got := f.hunkForLine("default", tt.flagKey, aliases[tt.flagKey], tt.lineNum, tt.ctxLines, tt.delimiters, tt.delimiterMap)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -204,7 +213,7 @@ func Test_aggregateHunksForFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := file{lines: tt.lines}
-			got := f.aggregateHunksForFlag("default", testFlagKey, []string{}, tt.ctxLines, defaultDelims)
+			got := f.aggregateHunksForFlag("default", testFlagKey, []string{}, tt.ctxLines, defaultDelims, defaultDelimsMap)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -279,11 +288,11 @@ func Test_mergeHunks(t *testing.T) {
 
 func Test_toHunks(t *testing.T) {
 	f := testFile
-	got := f.toHunks("default", aliases, 0, "")
+	got := f.toHunks("default", aliases, 0, "", defaultDelimsMap)
 	require.Equal(t, "fileWithRefs", got.Path)
 	require.Equal(t, len(testResultHunks), len(got.Hunks))
 	// no hunks should generate no references
-	require.Nil(t, f.toHunks("default", nil, 0, ""))
+	require.Nil(t, f.toHunks("default", nil, 0, defaultDelims, defaultDelimsMap))
 }
 
 func Test_processFiles(t *testing.T) {
@@ -298,7 +307,7 @@ func Test_processFiles(t *testing.T) {
 	files <- f2
 	files <- file{path: "no-refs"}
 	close(files)
-	go processFiles(context.Background(), files, references, "default", aliases, 0, "")
+	go processFiles(context.Background(), files, references, "default", aliases, 0, "", defaultDelimsMap)
 	totalRefs := 0
 	totalHunks := 0
 	for reference := range references {
@@ -311,7 +320,7 @@ func Test_processFiles(t *testing.T) {
 
 func Test_SearchForRefs(t *testing.T) {
 	want := []ld.ReferenceHunksRep{{Path: testFile.path}}
-	got, err := SearchForRefs("default", "testdata", aliases, 0, "")
+	got, err := SearchForRefs("default", "testdata", aliases, 0, "", defaultDelimsMap)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.Equal(t, want[0].Path, got[0].Path)
